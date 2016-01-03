@@ -26,6 +26,23 @@ import argparse
 
 import skog
 
+def print_ports(ports, portsdir, excludes=None):
+    if excludes is not None and len(excludes) > 0:
+        print("The following ports were not included in the tree:")
+        print("  %s" % "\n  ".join(excludes))
+        print()
+
+    treegen = skog.TreeGenerator(portsdir, excludes)
+    out = []
+    for port in ports:
+        try:
+            tree = treegen.run(port)
+        except KeyboardInterrupt:
+            return
+        out.append((port, tree))
+
+    skog.print_tree(out)
+
 def main():
     p = argparse.ArgumentParser(prog='skog')
     p.add_argument('--version', action='version',
@@ -39,7 +56,7 @@ def main():
 
     args = p.parse_args()
     try:
-        skog.print_ports(args.ports, args.portsdir, args.excludes)
+        print_ports(args.ports, args.portsdir, args.excludes)
     except KeyboardInterrupt:
         return
     except Exception as e:

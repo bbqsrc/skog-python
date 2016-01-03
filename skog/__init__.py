@@ -47,7 +47,7 @@ class TreeGenerator:
         self.mnt_len = len(self.mnt) + 1
         self.cmd = cmd or ['make', 'all-depends-list']
         self.env = extend_env(PORTSDIR=portsdir or path)
-        self.pool = concurrent.futures.ThreadPoolExecutor()
+        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
 
     def strip_mount(self, path):
         if path.startswith(self.mnt):
@@ -65,8 +65,8 @@ class TreeGenerator:
         if ports == '':
             return []
 
-        ports = (self.strip_mount(port) for port in ports.split('\n') \
-            if port not in self.excludes)
+        ports = [self.strip_mount(port) for port in ports.split('\n') \
+            if port not in self.excludes]
 
         root = [(port, res) for port, res in \
             zip(ports, self.pool.map(self.run, ports))]
@@ -93,17 +93,3 @@ def print_tree(nodes, depth=-1, prefix=None):
             p.append(' %s ' % _glyphs.pipe)
 
         print_tree(node[1], depth + 1, p)
-
-def print_ports(ports, portsdir, excludes=None):
-    if excludes is not None and len(excludes) > 0:
-        print("The following ports were not included in the tree:")
-        print("  %s" % "\n  ".join(excludes))
-        print()
-
-    treegen = TreeGenerator(portsdir, excludes)
-    out = []
-    for port in ports:
-        tree = treegen.run(port)
-        out.append((port, tree))
-
-    print_tree(out)
