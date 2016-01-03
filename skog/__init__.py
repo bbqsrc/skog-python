@@ -24,12 +24,18 @@
 
 from collections import namedtuple
 import locale
+import os
 
 __version__ = "0.1.0"
 
 _glyphs = namedtuple('Glyphs', ['leaf', 'leaf_end', 'leaf_arm', 'pipe'])(
     *("├└─│" if (locale.getlocale()[1] or '').upper() == "UTF-8" else "|\\-|")
 )
+
+def extend_env(**kwargs):
+    env = os.environ.copy()
+    env.update(kwargs)
+    return env
 
 class TreeGenerator:
     def __init__(self, path, excludes=None, portsdir=None, cmd=None):
