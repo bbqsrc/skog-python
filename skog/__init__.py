@@ -30,7 +30,7 @@ import subprocess
 __version__ = "0.1.0"
 
 _glyphs = namedtuple('Glyphs', ['leaf', 'leaf_end', 'leaf_arm', 'pipe'])(
-    *("├└─│" if (locale.getlocale()[1] or '').upper() == "UTF-8" else "|\\-|")
+    *("├└─│" if (locale.getlocale()[1] or '').upper() == "UTF-8" else "|`-|")
 )
 
 def extend_env(**kwargs):

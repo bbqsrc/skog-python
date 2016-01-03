@@ -38,7 +38,12 @@ def main():
         help='Ports to have a tree generated')
 
     args = p.parse_args()
-    skog.print_ports(args.ports, args.portsdir, args.excludes)
+    try:
+        skog.print_ports(args.ports, args.portsdir, args.excludes)
+    except KeyboardInterrupt:
+        return
+    except Exception as e:
+        print(e)
 
 if __name__ == "__main__":
     main()
