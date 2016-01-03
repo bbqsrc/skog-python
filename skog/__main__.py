@@ -38,6 +38,7 @@ def print_ports(ports, portsdir, excludes=None):
         try:
             tree = treegen.run(port)
         except KeyboardInterrupt:
+            treegen.pool.shutdown(wait=False)
             return
         out.append((port, tree))
 
