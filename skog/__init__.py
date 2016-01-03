@@ -23,6 +23,7 @@
 # SUCH DAMAGE.
 
 from collections import namedtuple
+import concurrent.futures
 import locale
 import os
 import subprocess
@@ -46,6 +47,7 @@ class TreeGenerator:
         self.mnt_len = len(self.mnt) + 1
         self.cmd = cmd or ['make', 'all-depends-list']
         self.env = extend_env(PORTSDIR=portsdir or path)
+        self.pool = concurrent.futures.ThreadPoolExecutor()
 
     def strip_mount(self, path):
         if path.startswith(self.mnt):
@@ -55,23 +57,19 @@ class TreeGenerator:
     def run(self, port_path):
         if port_path in self.cache:
             return self.cache[port_path]
-        root = []
 
         path = os.path.join(self.mnt, port_path)
         data = subprocess.check_output(self.cmd, cwd=path, env=self.env)
         ports = data.decode().strip()
 
         if ports == '':
-            return root
+            return []
 
-        ports = ports.split('\n')
+        ports = (self.strip_mount(port) for port in ports.split('\n') \
+            if port not in self.excludes)
 
-        for port in ports:
-            # Strip mnt prefix
-            port = self.strip_mount(port)
-            if port in self.excludes:
-                continue
-            root.append((port, self.run(port)))
+        root = [(port, res) for port, res in \
+            zip(ports, self.pool.map(self.run, ports))]
 
         self.cache[port_path] = root
         return root
