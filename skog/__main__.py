@@ -26,13 +26,14 @@ import argparse
 
 import skog
 
-def print_ports(ports, portsdir, excludes=None):
+def print_ports(ports, portsdir, excludes=None, max_depth=None, cmd=None):
     if excludes is not None and len(excludes) > 0:
         print("The following ports were not included in the tree:")
         print("  %s" % "\n  ".join(excludes))
         print()
 
-    treegen = skog.TreeGenerator(portsdir, excludes)
+    treegen = skog.TreeGenerator(portsdir, excludes,
+        max_depth=max_depth, cmd=cmd)
     out = []
     for port in ports:
         try:
@@ -42,12 +43,16 @@ def print_ports(ports, portsdir, excludes=None):
             return
         out.append((port, tree))
 
-    skog.print_tree(out)
+    skog.print_tree(out, max_depth=max_depth)
 
 def main():
     p = argparse.ArgumentParser(prog='skog')
     p.add_argument('--version', action='version',
         version='%(prog)s {}'.format(skog.__version__))
+    p.add_argument('-c', '--command', choices=['all', 'build', 'run', 'test'],
+        default='all', help='Dependency list command to use'),
+    p.add_argument('-d', '--depth', metavar='max-depth', dest='max_depth',
+        default=2, type=int, help="Maximum tree depth")
     p.add_argument('-p', '--ports-dir', metavar='ports-dir', dest='portsdir',
         default='/usr/ports', help='Path to ports directory')
     p.add_argument('-x', action='append', metavar='exclude-port', default=[],
@@ -57,9 +62,8 @@ def main():
 
     args = p.parse_args()
     try:
-        print_ports(args.ports, args.portsdir, args.excludes)
-    except KeyboardInterrupt:
-        return
+        print_ports(args.ports, args.portsdir, args.excludes,
+            max_depth=args.max_depth, cmd=args.command)
     except Exception as e:
         print(e)
 

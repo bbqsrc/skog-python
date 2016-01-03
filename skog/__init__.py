@@ -23,10 +23,15 @@
 # SUCH DAMAGE.
 
 from collections import namedtuple
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import locale
+import logging
+import multiprocessing
 import os
 import subprocess
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('skog')
 
 __version__ = "0.1.0"
 
@@ -40,24 +45,26 @@ def extend_env(**kwargs):
     return env
 
 class TreeGenerator:
-    def __init__(self, path, excludes=None, portsdir=None, cmd=None):
-        self.excludes = excludes or []
+    def __init__(self, path, excludes=None, portsdir=None, cmd=None, max_depth=None):
+        self.excludes = set(excludes or [])
         self.cache = {}
         self.mnt = path
         self.mnt_len = len(self.mnt) + 1
-        self.cmd = cmd or ['make', 'all-depends-list']
+        self.cmd = ['make', '%s-depends-list' % (cmd or 'all')]
         self.env = extend_env(PORTSDIR=portsdir or path)
-        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=32)
+        self.pool = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
+        self.max_depth = max_depth or 2
 
     def strip_mount(self, path):
         if path.startswith(self.mnt):
             return path[self.mnt_len:]
         return path
 
-    def run_pool(self, port_path):
-        if port_path in self.cache:
-            return self.cache[port_path]
-
+    def _run_pool(self, port_path, depth=None):
+        if depth is None:
+            depth = 0
+        elif depth == self.max_depth:
+            return [('[+]', [])]
         path = os.path.join(self.mnt, port_path)
         data = subprocess.check_output(self.cmd, cwd=path, env=self.env)
         ports = data.decode().strip()
@@ -69,17 +76,37 @@ class TreeGenerator:
                 (self.strip_mount(port) for port in ports.split('\n')) \
                 if port not in self.excludes]
 
-        root = [(port, future) for port, future in \
-            zip(ports, self.pool.submit(self.run, ports))]
+        root = []
+        for port in ports:
+            if port in self.cache:
+                logger.debug("Cache hit: %s -> %s" % (port_path, port))
+                root.append((port, self.cache[port]))
+            else:
+                future = self.pool.submit(self._run_pool, port, depth+1)
+                root.append((port, future))
 
         self.cache[port_path] = root
         return root
 
     def run(self, port_path):
-        futures = self.run(port_path)
-        return futures
+        if port_path in self.cache:
+            root = self.cache[port_path]
+        else:
+            root = self._run_pool(port_path)
+        return root
 
-def print_tree(nodes, depth=-1, prefix=None):
+def resolve_future(future):
+    if not isinstance(future, list):
+        return future.result()
+    return future
+
+def print_tree(nodes, depth=-1, prefix=None, max_depth=2):
+    if depth == max_depth:
+        print("%s %s%s[+]" % (''.join(prefix), _glyphs.leaf_end,
+            _glyphs.leaf_arm))
+        return
+    nodes = resolve_future(nodes)
+
     if prefix is None:
         prefix = []
 
@@ -97,4 +124,4 @@ def print_tree(nodes, depth=-1, prefix=None):
                 _glyphs.leaf_arm, node[0]))
             p.append(' %s ' % _glyphs.pipe)
 
-        print_tree(node[1], depth + 1, p)
+        print_tree(node[1], depth + 1, p, max_depth)
