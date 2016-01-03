@@ -25,6 +25,7 @@
 from collections import namedtuple
 import locale
 import os
+import subprocess
 
 __version__ = "0.1.0"
 
