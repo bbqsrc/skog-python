@@ -47,14 +47,14 @@ class TreeGenerator:
         self.mnt_len = len(self.mnt) + 1
         self.cmd = cmd or ['make', 'all-depends-list']
         self.env = extend_env(PORTSDIR=portsdir or path)
-        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=32)
 
     def strip_mount(self, path):
         if path.startswith(self.mnt):
             return path[self.mnt_len:]
         return path
 
-    def run(self, port_path):
+    def run_pool(self, port_path):
         if port_path in self.cache:
             return self.cache[port_path]
 
@@ -65,14 +65,19 @@ class TreeGenerator:
         if ports == '':
             return []
 
-        ports = [self.strip_mount(port) for port in ports.split('\n') \
-            if port not in self.excludes]
+        ports = [port for port in \
+                (self.strip_mount(port) for port in ports.split('\n')) \
+                if port not in self.excludes]
 
-        root = [(port, res) for port, res in \
-            zip(ports, self.pool.map(self.run, ports))]
+        root = [(port, future) for port, future in \
+            zip(ports, self.pool.submit(self.run, ports))]
 
         self.cache[port_path] = root
         return root
+
+    def run(self, port_path):
+        futures = self.run(port_path)
+        return futures
 
 def print_tree(nodes, depth=-1, prefix=None):
     if prefix is None:
